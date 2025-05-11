@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raw Data - Championship Tracker</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        nav { display: flex; justify-content: space-around; margin-bottom: 30px; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="input.html">Input Data</a>
+        <a href="data.html">View Raw Data</a>
+    </nav>
+
+    <h1>Raw Data</h1>
+    <button onclick="refreshData()">Refresh Data</button>
+    <pre id="json-data">Loading data...</pre>
+
+    <script src="app.js"></script>
+</body>
+</html>
