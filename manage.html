@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manage Championship</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <a href="index.html">Dashboard</a>
+        <a href="manage.html">Manage Data</a>
+        <a href="data.html">View Data</a>
+    </nav>
+
+    <div class="management-tabs">
+        <button class="tab-btn active" data-tab="teams">Teams</button>
+        <button class="tab-btn" data-tab="matches">Matches</button>
+    </div>
+
+    <div id="teams-tab" class="tab-content active">
+        <h2>Team Management</h2>
+        <div class="form-group">
+            <input type="text" id="team-name" placeholder="Team name">
+            <label>
+                <input type="checkbox" id="is-holder"> Current Holder
+            </label>
+            <button id="add-team">Add Team</button>
+        </div>
+        
+        <div class="team-list" id="team-list">
+            <!-- Team list will appear here -->
+        </div>
+    </div>
+
+    <div id="matches-tab" class="tab-content">
+        <h2>Match Management</h2>
+        <div class="form-group">
+            <input type="date" id="match-date">
+            <select id="home-team"></select>
+            <select id="away-team"></select>
+            <input type="number" id="home-score" placeholder="Home score" min="0">
+            <input type="number" id="away-score" placeholder="Away score" min="0">
+            <button id="add-match">Add Match</button>
+        </div>
+        
+        <div class="match-list" id="match-list">
+            <!-- Match list will appear here -->
+        </div>
+    </div>
+
+    <div class="danger-zone">
+        <h3>Reset Data</h3>
+        <button id="reset-data">Reset All Data</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
