@@ -671,3 +671,33 @@ function initializeInputPage() {
         editAwayTeam.appendChild(option);
     });
 }
+
+function resetData() {
+    if (!confirm('ARE YOU SURE?\nThis will delete ALL teams and matches permanently.')) {
+        return;
+    }
+    
+    // Create fresh data structure
+    championshipData = {
+        teams: [],
+        matches: [],
+        currentChampion: null,
+        lastMatchDate: null
+    };
+    
+    saveData();
+    
+    // Refresh all dropdowns and displays
+    if (document.getElementById('home-team')) {
+        populateTeamDropdowns();
+        loadMatchesForEditing();
+    }
+    if (document.getElementById('team-stats')) {
+        initializeDisplayPage();
+    }
+    if (document.getElementById('json-data')) {
+        displayRawData();
+    }
+    
+    alert('All data has been reset successfully!');
+}
