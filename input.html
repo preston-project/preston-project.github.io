@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Input Data - Championship Tracker</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input, select { padding: 8px; width: 100%; box-sizing: border-box; }
+        button { padding: 10px 15px; background: #4CAF50; color: white; border: none; cursor: pointer; }
+        nav { display: flex; justify-content: space-around; margin-bottom: 30px; }
+        .tabs { display: flex; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; cursor: pointer; border: 1px solid #ddd; }
+        .tab.active { background: #f0f0f0; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="input.html">Input Data</a>
+        <a href="data.html">View Raw Data</a>
+    </nav>
+
+    <h1>Data Input</h1>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="openTab('team-tab')">Add Team</div>
+        <div class="tab" onclick="openTab('match-tab')">Add Match</div>
+    </div>
+    
+    <div id="team-tab" class="tab-content active">
+        <h2>Add New Team</h2>
+        <div class="form-group">
+            <label for="team-name">Team Name:</label>
+            <input type="text" id="team-name" required>
+        </div>
+        <button onclick="addTeam()">Add Team</button>
+    </div>
+    
+    <div id="match-tab" class="tab-content">
+        <h2>Add New Match</h2>
+        <div class="form-group">
+            <label for="match-date">Date:</label>
+            <input type="date" id="match-date" required>
+        </div>
+        <div class="form-group">
+            <label for="home-team">Home Team:</label>
+            <select id="home-team" required></select>
+        </div>
+        <div class="form-group">
+            <label for="away-team">Away Team:</label>
+            <select id="away-team" required></select>
+        </div>
+        <div class="form-group">
+            <label for="home-score">Home Score:</label>
+            <input type="number" id="home-score" min="0" required>
+        </div>
+        <div class="form-group">
+            <label for="away-score">Away Score:</label>
+            <input type="number" id="away-score" min="0" required>
+        </div>
+        <button onclick="addMatch()">Add Match</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
