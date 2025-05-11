@@ -1,39 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Championship Tracker</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .holder { background-color: gold; padding: 10px; border-radius: 5px; }
-        .team-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        nav { display: flex; justify-content: space-around; margin-bottom: 30px; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <nav>
-        <a href="index.html">Home</a>
-        <a href="input.html">Input Data</a>
-        <a href="data.html">View Raw Data</a>
+        <a href="index.html">Dashboard</a>
+        <a href="manage.html">Manage Data</a>
+        <a href="data.html">View Data</a>
     </nav>
 
-    <h1>Championship Tracker</h1>
-    
-    <div id="current-holder" class="holder">
-        <h2>Current Champion: <span id="champion-name">Loading...</span></h2>
-        <p>Holding since: <span id="holding-since">-</span></p>
+    <div class="holder-banner" id="holder-display">
+        <!-- Current holder will appear here -->
     </div>
 
-    <h2>Team Statistics</h2>
-    <div class="stats-grid" id="team-stats">
-        <!-- Dynamically populated -->
-    </div>
-
-    <h2>On This Day</h2>
-    <div id="on-this-day">
-        <!-- Dynamically populated -->
+    <div class="stats-container">
+        <div class="team-cards" id="team-cards">
+            <!-- Team stats will appear here -->
+        </div>
     </div>
 
     <script src="app.js"></script>
