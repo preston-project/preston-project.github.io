@@ -427,3 +427,247 @@ function formatDate(dateString) {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
 }
+
+// Add these new functions for match editing
+function loadMatchesForEditing() {
+    const matchSelect = document.getElementById('match-select');
+    matchSelect.innerHTML = '';
+    
+    championshipData.matches.forEach(match => {
+        const homeTeam = championshipData.teams.find(t => t.id === match.homeTeamId);
+        const awayTeam = championshipData.teams.find(t => t.id === match.awayTeamId);
+        const option = document.createElement('option');
+        option.value = match.id;
+        option.textContent = `${formatDate(match.date)}: ${homeTeam.name} vs ${awayTeam.name}`;
+        matchSelect.appendChild(option);
+    });
+}
+
+function loadMatchForEdit() {
+    const matchId = parseInt(document.getElementById('match-select').value);
+    const match = championshipData.matches.find(m => m.id === matchId);
+    
+    if (!match) return;
+    
+    document.getElementById('edit-date').value = match.date;
+    document.getElementById('edit-home-team').value = match.homeTeamId;
+    document.getElementById('edit-away-team').value = match.awayTeamId;
+    document.getElementById('edit-home-score').value = match.homeScore;
+    document.getElementById('edit-away-score').value = match.awayScore;
+}
+
+function updateMatch() {
+    const matchId = parseInt(document.getElementById('match-select').value);
+    const matchIndex = championshipData.matches.findIndex(m => m.id === matchId);
+    
+    if (matchIndex === -1) {
+        alert('Please select a match to edit');
+        return;
+    }
+    
+    // Get edited values
+    const date = document.getElementById('edit-date').value;
+    const homeTeamId = parseInt(document.getElementById('edit-home-team').value);
+    const awayTeamId = parseInt(document.getElementById('edit-away-team').value);
+    const homeScore = parseInt(document.getElementById('edit-home-score').value);
+    const awayScore = parseInt(document.getElementById('edit-away-score').value);
+    
+    // Validate
+    if (!date || isNaN(homeTeamId) || isNaN(awayTeamId) || isNaN(homeScore) || isNaN(awayScore)) {
+        alert('Please fill all fields with valid values');
+        return;
+    }
+    
+    if (homeTeamId === awayTeamId) {
+        alert('Home and away teams cannot be the same');
+        return;
+    }
+    
+    // First, revert the old match's effects
+    revertMatchEffects(matchId);
+    
+    // Then determine new winner with the draw rule
+    let winnerId = null;
+    if (homeScore > awayScore) {
+        winnerId = homeTeamId;
+    } else if (awayScore > homeScore) {
+        winnerId = awayTeamId;
+    } else {
+        // Draw - winner is current champion before this match
+        winnerId = championshipData.matches[matchIndex].championBefore;
+    }
+    
+    // Update the match
+    const updatedMatch = {
+        ...championshipData.matches[matchIndex],
+        date: date,
+        homeTeamId: homeTeamId,
+        awayTeamId: awayTeamId,
+        homeScore: homeScore,
+        awayScore: awayScore,
+        winnerId: winnerId,
+        championAfter: winnerId || championshipData.matches[matchIndex].championBefore
+    };
+    
+    // Apply the updated match's effects
+    applyMatchEffects(updatedMatch, matchIndex);
+    
+    // Save changes
+    championshipData.matches[matchIndex] = updatedMatch;
+    saveData();
+    
+    alert('Match updated successfully!');
+}
+
+function revertMatchEffects(matchId) {
+    const match = championshipData.matches.find(m => m.id === matchId);
+    if (!match) return;
+    
+    const homeTeam = championshipData.teams.find(t => t.id === match.homeTeamId);
+    const awayTeam = championshipData.teams.find(t => t.id === match.awayTeamId);
+    
+    // Revert win/loss records
+    if (match.winnerId === match.homeTeamId) {
+        homeTeam.wins--;
+        awayTeam.losses--;
+    } else if (match.winnerId === match.awayTeamId) {
+        awayTeam.wins--;
+        homeTeam.losses--;
+    }
+    
+    // Revert champion status if this match changed it
+    if (match.championBefore !== match.championAfter) {
+        // Remove the new champion's reign
+        const newChamp = championshipData.teams.find(t => t.id === match.championAfter);
+        if (newChamp.holdingHistory.length > 0) {
+            newChamp.holdingHistory.pop();
+        }
+        
+        // Restore the previous champion's reign if it was ended by this match
+        const prevChamp = championshipData.teams.find(t => t.id === match.championBefore);
+        prevChamp.holdingHistory.push({
+            startDate: match.date,
+            endDate: null,
+            daysHeld: 0
+        });
+        
+        championshipData.currentChampion = match.championBefore;
+    }
+}
+
+function applyMatchEffects(match, matchIndex) {
+    const homeTeam = championshipData.teams.find(t => t.id === match.homeTeamId);
+    const awayTeam = championshipData.teams.find(t => t.id === match.awayTeamId);
+    
+    // Update win/loss records
+    if (match.winnerId === match.homeTeamId) {
+        homeTeam.wins++;
+        awayTeam.losses++;
+    } else if (match.winnerId === match.awayTeamId) {
+        awayTeam.wins++;
+        homeTeam.losses++;
+    }
+    
+    // Update streaks (simplified - you might want to improve this)
+    updateStreak(homeTeam, match.winnerId === match.homeTeamId ? 'win' : 
+                (match.winnerId === match.awayTeamId ? 'loss' : 'draw'));
+    updateStreak(awayTeam, match.winnerId === match.awayTeamId ? 'win' : 
+                (match.winnerId === match.homeTeamId ? 'loss' : 'draw'));
+    
+    // Update champion status if changed
+    if (match.championAfter !== match.championBefore) {
+        // End previous champion's reign
+        const prevChamp = championshipData.teams.find(t => t.id === match.championBefore);
+        if (prevChamp.holdingHistory.length > 0) {
+            const currentReign = prevChamp.holdingHistory[prevChamp.holdingHistory.length - 1];
+            if (!currentReign.endDate) {
+                currentReign.endDate = match.date;
+                const startDate = new Date(currentReign.startDate);
+                const endDate = new Date(match.date);
+                currentReign.daysHeld = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
+            }
+        }
+        
+        // Start new champion's reign
+        const newChamp = championshipData.teams.find(t => t.id === match.championAfter);
+        newChamp.holdingHistory.push({
+            startDate: match.date,
+            endDate: null,
+            daysHeld: 0
+        });
+        
+        championshipData.currentChampion = match.championAfter;
+    }
+}
+
+function deleteMatch() {
+    const matchId = parseInt(document.getElementById('match-select').value);
+    const matchIndex = championshipData.matches.findIndex(m => m.id === matchId);
+    
+    if (matchIndex === -1) {
+        alert('Please select a match to delete');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to delete this match? This cannot be undone.')) {
+        return;
+    }
+    
+    // Revert match effects
+    revertMatchEffects(matchId);
+    
+    // Remove the match
+    championshipData.matches.splice(matchIndex, 1);
+    saveData();
+    
+    // Reload the edit interface
+    loadMatchesForEditing();
+    alert('Match deleted successfully!');
+}
+
+// Modify the addMatch function to implement the draw rule
+function addMatch() {
+    // ... existing code until winner determination ...
+    
+    // Determine winner with the draw rule
+    let winnerId = null;
+    if (homeScore > awayScore) {
+        winnerId = homeTeamId;
+    } else if (awayScore > homeScore) {
+        winnerId = awayTeamId;
+    } else {
+        // Draw - winner is current champion
+        winnerId = championshipData.currentChampion;
+    }
+    
+    // Get current champion before the match
+    const championBefore = championshipData.currentChampion;
+    
+    // Determine champion after the match
+    let championAfter = championBefore;
+    if (winnerId) {
+        championAfter = winnerId;
+    }
+    
+    // ... rest of the existing addMatch function ...
+}
+
+// Update the initializeInputPage function
+function initializeInputPage() {
+    populateTeamDropdowns();
+    loadMatchesForEditing();
+    
+    // Also populate the edit dropdowns
+    const editHomeTeam = document.getElementById('edit-home-team');
+    const editAwayTeam = document.getElementById('edit-away-team');
+    editHomeTeam.innerHTML = '';
+    editAwayTeam.innerHTML = '';
+    
+    championshipData.teams.forEach(team => {
+        const option = document.createElement('option');
+        option.value = team.id;
+        option.textContent = team.name;
+        editHomeTeam.appendChild(option.cloneNode(true));
+        editAwayTeam.appendChild(option);
+    });
+}
