@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Championship Data - Raw View</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Additional styles specific to data.html */
+        .data-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .data-actions button {
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #export-json {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+        #copy-json {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+        }
+        #refresh-data {
+            background-color: #ff9800;
+            color: white;
+            border: none;
+        }
+        #json-display {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .search-box {
+            margin-bottom: 15px;
+        }
+        #search-input {
+            padding: 8px;
+            width: 300px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html">Dashboard</a>
+        <a href="manage.html">Manage Data</a>
+        <a href="data.html">View Data</a>
+    </nav>
+
+    <div class="container">
+        <h1>Raw Championship Data</h1>
+        
+        <div class="data-actions">
+            <button id="export-json">Export JSON</button>
+            <button id="copy-json">Copy to Clipboard</button>
+            <button id="refresh-data">Refresh Data</button>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Search in JSON...">
+            <button id="search-button">Search</button>
+        </div>
+        
+        <div id="json-display">Loading data...</div>
+        
+        <div class="danger-zone">
+            <h3>Reset Data</h3>
+            <button id="reset-data">Reset All Data</button>
+            <p><small>Warning: This cannot be undone. Export your data first if you want to save it.</small></p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Additional JavaScript for data.html
+        document.addEventListener('DOMContentLoaded', function() {
+            // Display the data
+            displayJsonData();
+            
+            // Set up event listeners
+            document.getElementById('refresh-data').addEventListener('click', displayJsonData);
+            document.getElementById('export-json').addEventListener('click', exportJson);
+            document.getElementById('copy-json').addEventListener('click', copyJsonToClipboard);
+            document.getElementById('reset-data').addEventListener('click', resetData);
+            document.getElementById('search-button').addEventListener('click', searchJson);
+            
+            // Allow search on Enter key
+            document.getElementById('search-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchJson();
+                }
+            });
+        });
+
+        function displayJsonData() {
+            const jsonDisplay = document.getElementById('json-display');
+            try {
+                const data = JSON.parse(localStorage.getItem('championshipData') || '{}');
+                jsonDisplay.textContent = JSON.stringify(data, null, 2);
+                jsonDisplay.dataset.rawJson = JSON.stringify(data); // Store for searching
+            } catch (e) {
+                jsonDisplay.textContent = 'Error loading data: ' + e.message;
+            }
+        }
+
+        function exportJson() {
+            const data = localStorage.getItem('championshipData');
+            if (!data) {
+                alert('No data to export');
+                return;
+            }
+            
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'championship-data-' + new Date().toISOString().split('T')[0] + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function copyJsonToClipboard() {
+            const jsonDisplay = document.getElementById('json-display');
+            navigator.clipboard.writeText(jsonDisplay.textContent)
+                .then(() => alert('JSON copied to clipboard!'))
+                .catch(err => alert('Failed to copy: ' + err));
+        }
+
+        function searchJson() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            if (!searchTerm) return;
+            
+            const jsonDisplay = document.getElementById('json-display');
+            const rawJson = jsonDisplay.dataset.rawJson;
+            
+            if (!rawJson) {
+                alert('No data loaded to search');
+                return;
+            }
+            
+            // Simple search - highlight matches
+            const highlighted = rawJson.replace(
+                new RegExp(searchTerm, 'gi'),
+                match => `<span class="search-highlight">${match}</span>`
+            );
+            
+            jsonDisplay.innerHTML = highlighted;
+            
+            // Scroll to first match
+            const firstMatch = document.querySelector('.search-highlight');
+            if (firstMatch) {
+                firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function resetData() {
+            if (!confirm('ARE YOU SURE YOU WANT TO RESET ALL DATA?\nThis cannot be undone.')) {
+                return;
+            }
+            
+            localStorage.removeItem('championshipData');
+            displayJsonData();
+            alert('All data has been reset. The page will now reload.');
+            setTimeout(() => location.reload(), 1000);
+        }
+    </script>
+</body>
+</html>
