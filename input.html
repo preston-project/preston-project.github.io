@@ -30,6 +30,7 @@
     <div class="tabs">
         <div class="tab active" onclick="openTab('team-tab')">Add Team</div>
         <div class="tab" onclick="openTab('match-tab')">Add Match</div>
+        <div class="tab" onclick="openTab('edit-tab')">Edit Matches</div>
     </div>
     
     <div id="team-tab" class="tab-content active">
@@ -65,7 +66,35 @@
         </div>
         <button onclick="addMatch()">Add Match</button>
     </div>
-
+<div id="edit-tab" class="tab-content">
+    <h2>Edit Previous Matches</h2>
+    <div class="form-group">
+        <label for="match-select">Select Match:</label>
+        <select id="match-select" onchange="loadMatchForEdit()"></select>
+    </div>
+    <div class="form-group">
+        <label for="edit-date">Date:</label>
+        <input type="date" id="edit-date" required>
+    </div>
+    <div class="form-group">
+        <label for="edit-home-team">Home Team:</label>
+        <select id="edit-home-team" required></select>
+    </div>
+    <div class="form-group">
+        <label for="edit-away-team">Away Team:</label>
+        <select id="edit-away-team" required></select>
+    </div>
+    <div class="form-group">
+        <label for="edit-home-score">Home Score:</label>
+        <input type="number" id="edit-home-score" min="0" required>
+    </div>
+    <div class="form-group">
+        <label for="edit-away-score">Away Score:</label>
+        <input type="number" id="edit-away-score" min="0" required>
+    </div>
+    <button onclick="updateMatch()">Update Match</button>
+    <button onclick="deleteMatch()" class="delete-btn">Delete Match</button>
+</div>
     <script src="app.js"></script>
 </body>
 </html>
