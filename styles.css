@@ -8,7 +8,6 @@
     --light-color: #ecf0f1;
     --dark-color: #2c3e50;
     --holder-color: #f1c40f;
-    --search-highlight: #e3f2fd;
 }
 
 * {
@@ -26,7 +25,6 @@ body {
     margin: 0;
 }
 
-/* Navigation */
 nav {
     background-color: var(--primary-color);
     padding: 1rem;
@@ -52,7 +50,6 @@ nav a.active {
     font-weight: bold;
 }
 
-/* Main Content */
 main {
     max-width: 1200px;
     margin: 2rem auto;
@@ -123,7 +120,6 @@ main {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Tables */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -178,14 +174,12 @@ th {
     display: block;
 }
 
-/* Forms */
 .form-container {
     margin-bottom: 2rem;
 }
 
 .form-group {
-    margin-bottom: 1.5rem;
-    position: relative;
+    margin-bottom: 1rem;
 }
 
 .form-group label {
@@ -201,13 +195,6 @@ th {
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 1rem;
-    transition: border-color 0.3s;
-}
-
-.form-group input:focus {
-    outline: none;
-    border-color: var(--secondary-color);
-    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
 }
 
 .checkbox-label {
@@ -224,48 +211,6 @@ th {
     margin-bottom: 1rem;
 }
 
-/* Search Input Styles */
-.search-results {
-    display: none;
-    position: absolute;
-    background: white;
-    border: 1px solid #ddd;
-    border-top: none;
-    border-radius: 0 0 4px 4px;
-    width: calc(100% - 2px);
-    max-height: 200px;
-    overflow-y: auto;
-    z-index: 100;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-
-.search-result-item {
-    padding: 10px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid #eee;
-    transition: background-color 0.2s;
-}
-
-.search-result-item:hover {
-    background-color: var(--search-highlight);
-}
-
-.search-result-item:last-child {
-    border-bottom: none;
-}
-
-.search-result-item.highlighted {
-    background-color: var(--search-highlight);
-    font-weight: bold;
-}
-
-.search-no-results {
-    padding: 10px 12px;
-    color: #666;
-    font-style: italic;
-}
-
-/* Buttons */
 .primary-btn {
     background-color: var(--secondary-color);
     color: white;
@@ -296,7 +241,6 @@ th {
     background-color: #c0392b;
 }
 
-/* Danger Zone */
 .danger-zone {
     margin-top: 3rem;
     padding: 1.5rem;
@@ -350,12 +294,6 @@ th {
     overflow-y: auto;
 }
 
-.search-highlight {
-    background-color: var(--holder-color);
-    padding: 0 2px;
-    border-radius: 2px;
-}
-
 /* Utility Classes */
 .holder-badge {
     display: inline-block;
@@ -377,34 +315,4 @@ th {
 
 .text-warning {
     color: var(--warning-color);
-}
-
-/* Responsive Adjustments */
-@media (max-width: 768px) {
-    .form-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .score-inputs {
-        grid-template-columns: 1fr;
-    }
-    
-    nav {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .data-actions {
-        flex-direction: column;
-    }
-}
-
-/* Animation for search results */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.search-results {
-    animation: fadeIn 0.2s ease-out;
 }
