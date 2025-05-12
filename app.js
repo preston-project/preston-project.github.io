@@ -6,12 +6,6 @@ let championshipData = {
     lastUpdated: null
 };
 
-// Search-related variables
-let homeTeamSearchTimeout;
-let awayTeamSearchTimeout;
-let homeTeamResultsVisible = false;
-let awayTeamResultsVisible = false;
-
 // Initialize Data
 function initData() {
     const savedData = localStorage.getItem('championshipData');
@@ -40,340 +34,149 @@ function saveData() {
     }
 }
 
-// Team Management Functions
-function addTeam() {
-    const nameInput = document.getElementById('team-name');
-    const isHolderCheckbox = document.getElementById('is-holder');
+// Dashboard Functions
+function initDashboard() {
+    initData();
+    updateDashboard();
     
-    const name = nameInput.value.trim();
-    if (!name) {
-        showError('Please enter a team name');
-        return;
-    }
+    // Listen for data changes from other tabs
+    window.addEventListener('championshipDataUpdated', updateDashboard);
+}
 
-    // Check if team already exists
-    const teamExists = championshipData.teams.some(team => 
-        team.name.toLowerCase() === name.toLowerCase()
-    );
+function updateDashboard() {
+    updateCurrentHolder();
+    updateTeamStats();
+    updateRecentMatches();
+}
+
+function updateCurrentHolder() {
+    const holderContainer = document.getElementById('current-holder');
+    if (!holderContainer) return;
     
-    if (teamExists) {
-        showError('A team with this name already exists');
-        return;
+    const holderName = document.getElementById('holder-name');
+    const holderSince = document.getElementById('holder-since');
+    
+    if (championshipData.currentHolder) {
+        const holder = championshipData.teams.find(t => t.id === championshipData.currentHolder);
+        if (holder) {
+            holderName.textContent = holder.name;
+            
+            // Find current reign
+            const currentReign = holder.reigns.find(r => !r.end);
+            if (currentReign) {
+                const startDate = new Date(currentReign.start);
+                holderSince.textContent = `Holding since: ${startDate.toLocaleDateString()}`;
+            } else {
+                holderSince.textContent = 'Holding since: Unknown';
+            }
+            return;
+        }
     }
     
-    const newTeam = {
-        id: Date.now(), // Unique ID based on timestamp
-        name,
-        wins: 0,
-        losses: 0,
-        isHolder: isHolderCheckbox.checked,
-        streaks: {
-            longestWin: 0,
-            longestLoss: 0,
-            current: ""
-        },
-        reigns: []
-    };
+    holderName.textContent = 'No current holder';
+    holderSince.textContent = '';
+}
+
+function updateTeamStats() {
+    const container = document.getElementById('team-stats');
+    if (!container) return;
     
-    if (newTeam.isHolder) {
-        // Clear previous holder
-        championshipData.teams.forEach(team => team.isHolder = false);
-        championshipData.currentHolder = newTeam.id;
+    container.innerHTML = '';
+    
+    championshipData.teams.forEach(team => {
+        const card = document.createElement('div');
+        card.className = `team-card ${team.isHolder ? 'holder' : ''}`;
         
-        // Add initial reign
-        newTeam.reigns.push({
-            start: new Date().toISOString(),
-            end: null,
-            days: 0
-        });
-    }
-    
-    championshipData.teams.push(newTeam);
-    saveData();
-    
-    // Reset form
-    nameInput.value = '';
-    isHolderCheckbox.checked = false;
-    clearError();
-    
-    // Update UI
-    renderTeamsTable();
-    
-    // Refresh search dropdowns if on matches tab
-    if (document.getElementById('matches-tab').classList.contains('active')) {
-        document.getElementById('home-team-search').value = '';
-        document.getElementById('away-team-search').value = '';
-        document.getElementById('home-team-results').innerHTML = '';
-        document.getElementById('away-team-results').innerHTML = '';
-    }
-    
-    // Show success message
-    showSuccess('Team added successfully!');
+        // Calculate longest reign
+        let longestReign = 0;
+        if (team.reigns.length > 0) {
+            longestReign = Math.max(...team.reigns.map(r => r.days || 0));
+        }
+        
+        // Calculate current streak
+        let streakText = 'No streak';
+        if (team.streaks.current) {
+            const type = team.streaks.current.startsWith('W') ? 'Winning' : 'Losing';
+            const count = team.streaks.current.substring(1);
+            streakText = `${type} streak: ${count}`;
+        }
+        
+        card.innerHTML = `
+            <h3>${team.name} ${team.isHolder ? '🏆' : ''}</h3>
+            <p><strong>Record:</strong> ${team.wins}-${team.losses}</p>
+            <p><strong>Current Streak:</strong> ${streakText}</p>
+            <p><strong>Longest Win Streak:</strong> ${team.streaks.longestWin}</p>
+            <p><strong>Longest Loss Streak:</strong> ${team.streaks.longestLoss}</p>
+            ${team.reigns.length > 0 ? `
+                <p><strong>Longest Reign:</strong> ${longestReign} days</p>
+            ` : ''}
+        `;
+        
+        container.appendChild(card);
+    });
 }
 
-function showError(message) {
-    clearError();
-    const errorElement = document.createElement('div');
-    errorElement.className = 'error-message';
-    errorElement.textContent = message;
-    document.getElementById('add-team').insertAdjacentElement('beforebegin', errorElement);
-}
-
-function showSuccess(message) {
-    const successElement = document.createElement('div');
-    successElement.className = 'success-message';
-    successElement.textContent = message;
-    const formContainer = document.querySelector('#teams-tab .form-container');
-    formContainer.insertBefore(successElement, formContainer.firstChild);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        successElement.remove();
-    }, 3000);
-}
-
-function clearError() {
-    const existingError = document.querySelector('.error-message');
-    if (existingError) existingError.remove();
-}
-
-function renderTeamsTable() {
-    const tableBody = document.querySelector('#teams-table tbody');
+function updateRecentMatches() {
+    const tableBody = document.querySelector('#recent-matches tbody');
     if (!tableBody) return;
     
     tableBody.innerHTML = '';
     
-    if (championshipData.teams.length === 0) {
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="4" class="no-teams">No teams added yet</td>
-            </tr>
-        `;
-        return;
-    }
+    // Sort matches by date (newest first)
+    const sortedMatches = [...championshipData.matches].sort((a, b) => 
+        new Date(b.date) - new Date(a.date));
     
-    championshipData.teams.forEach(team => {
+    // Show last 10 matches
+    const recentMatches = sortedMatches.slice(0, 10);
+    
+    recentMatches.forEach(match => {
+        const homeTeam = championshipData.teams.find(t => t.id === match.homeId);
+        const awayTeam = championshipData.teams.find(t => t.id === match.awayId);
+        const champion = championshipData.teams.find(t => t.id === match.postMatchHolder);
+        
+        if (!homeTeam || !awayTeam || !champion) return;
+        
         const row = document.createElement('tr');
         
+        // Determine result class
+        let resultClass = '';
+        let resultText = '';
+        if (match.winnerId === match.homeId) {
+            resultClass = 'text-success';
+            resultText = `${homeTeam.name} won`;
+        } else if (match.winnerId === match.awayId) {
+            resultClass = 'text-success';
+            resultText = `${awayTeam.name} won`;
+        } else {
+            resultClass = 'text-warning';
+            resultText = 'Draw';
+        }
+        
+        // Check if championship changed
+        const champChanged = match.preMatchHolder !== match.postMatchHolder;
+        
         row.innerHTML = `
-            <td>${team.name}</td>
-            <td>${team.wins}-${team.losses}</td>
-            <td>${team.isHolder ? '<span class="holder-badge">Holder</span>' : ''}</td>
-            <td class="actions">
-                <button onclick="editTeamPrompt(${team.id})" class="edit-btn">Edit</button>
-                <button onclick="deleteTeamPrompt(${team.id})" class="delete-btn">Delete</button>
-            </td>
+            <td>${new Date(match.date).toLocaleDateString()}</td>
+            <td>${homeTeam.name} vs ${awayTeam.name}</td>
+            <td class="${resultClass}">${match.homeScore}-${match.awayScore} (${resultText})</td>
+            <td>${champion.name} ${champChanged ? '👑' : ''}</td>
         `;
         
         tableBody.appendChild(row);
     });
 }
 
-function editTeamPrompt(teamId) {
-    const team = championshipData.teams.find(t => t.id === teamId);
-    if (!team) return;
-    
-    const newName = prompt('Edit team name:', team.name);
-    if (newName && newName.trim() !== team.name) {
-        team.name = newName.trim();
-        saveData();
-        renderTeamsTable();
-    }
-}
-
-function deleteTeamPrompt(teamId) {
-    if (!confirm('Are you sure you want to delete this team? This will also delete all associated matches.')) {
-        return;
-    }
-    
-    deleteTeam(teamId);
-}
-
-function deleteTeam(teamId) {
-    // Find team index
-    const teamIndex = championshipData.teams.findIndex(t => t.id === teamId);
-    if (teamIndex === -1) return;
-    
-    // Check if this is the current holder
-    const isHolder = championshipData.currentHolder === teamId;
-    
-    // Remove team
-    championshipData.teams.splice(teamIndex, 1);
-    
-    // Remove matches involving this team
-    championshipData.matches = championshipData.matches.filter(m => 
-        m.homeId !== teamId && m.awayId !== teamId
-    );
-    
-    // Update current holder if needed
-    if (isHolder) {
-        championshipData.currentHolder = null;
-    }
-    
-    saveData();
-    renderTeamsTable();
-    renderMatchesTable();
-}
-
-// Match Management Functions
-function addMatch() {
-    const dateInput = document.getElementById('match-date');
-    const homeId = parseInt(document.getElementById('home-team-id').value);
-    const awayId = parseInt(document.getElementById('away-team-id').value);
-    const homeScoreInput = document.getElementById('home-score');
-    const awayScoreInput = document.getElementById('away-score');
-    
-    const date = dateInput.value;
-    const homeScore = parseInt(homeScoreInput.value);
-    const awayScore = parseInt(awayScoreInput.value);
-    
-    // Validation
-    if (!date || isNaN(homeId) || isNaN(awayId) || isNaN(homeScore) || isNaN(awayScore)) {
-        alert('Please fill all fields with valid values');
-        return;
-    }
-    
-    if (homeId === awayId) {
-        alert('Home and away teams cannot be the same');
-        return;
-    }
-    
-    // Get current holder before match
-    const preMatchHolder = championshipData.currentHolder;
-    
-    // Determine winner and new holder
-    let winnerId = null;
-    let postMatchHolder = preMatchHolder;
-    
-    if (homeScore > awayScore) {
-        winnerId = homeId;
-        postMatchHolder = homeId;
-    } else if (awayScore > homeScore) {
-        winnerId = awayId;
-        postMatchHolder = awayId;
-    } else {
-        // Draw - winner is current holder
-        winnerId = preMatchHolder;
-        postMatchHolder = preMatchHolder;
-    }
-    
-    // Create new match
-    const newMatch = {
-        id: Date.now(),
-        homeId,
-        awayId,
-        date,
-        homeScore,
-        awayScore,
-        winnerId,
-        preMatchHolder,
-        postMatchHolder
-    };
-    
-    // Process match results
-    processMatchResults(newMatch);
-    
-    // Add to matches
-    championshipData.matches.push(newMatch);
-    saveData();
-    
-    // Reset form
-    homeScoreInput.value = '';
-    awayScoreInput.value = '';
-    document.getElementById('home-team-search').value = '';
-    document.getElementById('away-team-search').value = '';
-    document.getElementById('home-team-id').value = '';
-    document.getElementById('away-team-id').value = '';
-    
-    // Update UI
-    renderMatchesTable();
-}
-
-// ... [rest of your existing match-related functions] ...
-
-// Search Functionality
-function handleHomeTeamSearch(e) {
-    clearTimeout(homeTeamSearchTimeout);
-    homeTeamSearchTimeout = setTimeout(() => {
-        const query = e.target.value.trim().toLowerCase();
-        searchTeams(query, 'home');
-    }, 300);
-}
-
-function handleAwayTeamSearch(e) {
-    clearTimeout(awayTeamSearchTimeout);
-    awayTeamSearchTimeout = setTimeout(() => {
-        const query = e.target.value.trim().toLowerCase();
-        searchTeams(query, 'away');
-    }, 300);
-}
-
-function searchTeams(query, type) {
-    const resultsContainer = document.getElementById(`${type}-team-results`);
-    resultsContainer.innerHTML = '';
-    
-    if (query.length < 1) {
-        resultsContainer.style.display = 'none';
-        return;
-    }
-    
-    const filteredTeams = championshipData.teams.filter(team => 
-        team.name.toLowerCase().includes(query)
-    );
-    
-    if (filteredTeams.length === 0) {
-        resultsContainer.innerHTML = '<div class="search-result-item no-results">No teams found</div>';
-    } else {
-        filteredTeams.forEach(team => {
-            const item = document.createElement('div');
-            item.className = 'search-result-item';
-            item.textContent = team.name;
-            item.dataset.teamId = team.id;
-            item.addEventListener('click', () => selectTeam(team, type));
-            resultsContainer.appendChild(item);
-        });
-    }
-    
-    if (type === 'home' && homeTeamResultsVisible) {
-        resultsContainer.style.display = 'block';
-    } else if (type === 'away' && awayTeamResultsVisible) {
-        resultsContainer.style.display = 'block';
-    }
-}
-
-function selectTeam(team, type) {
-    document.getElementById(`${type}-team-search`).value = team.name;
-    document.getElementById(`${type}-team-id`).value = team.id;
-    document.getElementById(`${type}-team-results`).style.display = 'none';
-    
-    if (type === 'home') {
-        homeTeamResultsVisible = false;
-    } else {
-        awayTeamResultsVisible = false;
-    }
-}
-
-// Initialize the appropriate page
-document.addEventListener('DOMContentLoaded', function() {
-    initData();
-    
-    if (window.location.pathname.includes('index.html') || 
-        window.location.pathname.endsWith('/')) {
-        initDashboard();
-    } else if (window.location.pathname.includes('manage.html')) {
-        initManagement();
-    } else if (window.location.pathname.includes('data.html')) {
-        initDataViewer();
-    }
-});
-
+// Management Functions
 function initManagement() {
+    initData();
     setupManagementEventListeners();
+    populateTeamDropdowns();
     renderTeamsTable();
     renderMatchesTable();
     
     // Listen for data changes from other tabs
     window.addEventListener('championshipDataUpdated', () => {
+        populateTeamDropdowns();
         renderTeamsTable();
         renderMatchesTable();
     });
@@ -391,136 +194,16 @@ function setupManagementEventListeners() {
         });
     });
     
-    // Team form submission
+    // Team form
     document.getElementById('add-team')?.addEventListener('click', addTeam);
     
-    // Also allow form submission on Enter key in team name field
-    document.getElementById('team-name')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            addTeam();
-        }
-    });
-    
-    // Match form submission
+    // Match form
     document.getElementById('add-match')?.addEventListener('click', addMatch);
     
     // Reset button
     document.getElementById('reset-data')?.addEventListener('click', resetData);
-
-    // Team search functionality
-    document.getElementById('home-team-search')?.addEventListener('input', handleHomeTeamSearch);
-    document.getElementById('away-team-search')?.addEventListener('input', handleAwayTeamSearch);
-    
-    // Show results on focus
-    document.getElementById('home-team-search')?.addEventListener('focus', () => {
-        homeTeamResultsVisible = true;
-        document.getElementById('home-team-results').style.display = 'block';
-    });
-    document.getElementById('away-team-search')?.addEventListener('focus', () => {
-        awayTeamResultsVisible = true;
-        document.getElementById('away-team-results').style.display = 'block';
-    });
-
-// Keyboard navigation
-    document.getElementById('home-team-search')?.addEventListener('keydown', (e) => handleSearchKeyNavigation(e, 'home'));
-    document.getElementById('away-team-search')?.addEventListener('keydown', (e) => handleSearchKeyNavigation(e, 'away'));
 }
 
-// Team search functions
-function handleHomeTeamSearch(e) {
-    clearTimeout(homeTeamSearchTimeout);
-    homeTeamSearchTimeout = setTimeout(() => {
-        const query = e.target.value.trim().toLowerCase();
-        searchTeams(query, 'home');
-    }, 300);
-}
-
-function handleAwayTeamSearch(e) {
-    clearTimeout(awayTeamSearchTimeout);
-    awayTeamSearchTimeout = setTimeout(() => {
-        const query = e.target.value.trim().toLowerCase();
-        searchTeams(query, 'away');
-    }, 300);
-}
-
-function searchTeams(query, type) {
-    const resultsContainer = document.getElementById(`${type}-team-results`);
-    resultsContainer.innerHTML = '';
-    
-    if (query.length < 1) {
-        resultsContainer.style.display = 'none';
-        return;
-    }
-    
-    const filteredTeams = championshipData.teams.filter(team => 
-        team.name.toLowerCase().includes(query)
-    );
-    
-    if (filteredTeams.length === 0) {
-        resultsContainer.innerHTML = '<div class="search-result-item">No teams found</div>';
-    } else {
-        filteredTeams.forEach(team => {
-            const item = document.createElement('div');
-            item.className = 'search-result-item';
-            item.textContent = team.name;
-            item.dataset.teamId = team.id;
-            item.addEventListener('click', () => selectTeam(team, type));
-            resultsContainer.appendChild(item);
-        });
-    }
-    
-    if (type === 'home' && homeTeamResultsVisible) {
-        resultsContainer.style.display = 'block';
-    } else if (type === 'away' && awayTeamResultsVisible) {
-        resultsContainer.style.display = 'block';
-    }
-}
-
-function selectTeam(team, type) {
-    document.getElementById(`${type}-team-search`).value = team.name;
-    document.getElementById(`${type}-team-id`).value = team.id;
-    document.getElementById(`${type}-team-results`).style.display = 'none';
-    
-    if (type === 'home') {
-        homeTeamResultsVisible = false;
-    } else {
-        awayTeamResultsVisible = false;
-    }
-}
-
-function handleSearchKeyNavigation(e, type) {
-    const results = document.getElementById(`${type}-team-results`);
-    const items = results.querySelectorAll('.search-result-item');
-    let currentIndex = -1;
-    
-    items.forEach((item, index) => {
-        if (item.classList.contains('highlighted')) {
-            currentIndex = index;
-            item.classList.remove('highlighted');
-        }
-    });
-    
-    if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        const nextIndex = (currentIndex + 1) % items.length;
-        items[nextIndex].classList.add('highlighted');
-        items[nextIndex].scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        const prevIndex = (currentIndex - 1 + items.length) % items.length;
-        items[prevIndex].classList.add('highlighted');
-        items[prevIndex].scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (currentIndex >= 0) {
-            const teamId = items[currentIndex].dataset.teamId;
-            const team = championshipData.teams.find(t => t.id == teamId);
-            if (team) selectTeam(team, type);
-        }
-    }
-}
-
-// Team Management
 function addTeam() {
     const nameInput = document.getElementById('team-name');
     const isHolderCheckbox = document.getElementById('is-holder');
@@ -566,18 +249,20 @@ function addTeam() {
     isHolderCheckbox.checked = false;
     
     // Update UI
+    populateTeamDropdowns();
     renderTeamsTable();
 }
 
-// Match Management
 function addMatch() {
     const dateInput = document.getElementById('match-date');
-    const homeId = parseInt(document.getElementById('home-team-id').value);
-    const awayId = parseInt(document.getElementById('away-team-id').value);
+    const homeSelect = document.getElementById('home-team');
+    const awaySelect = document.getElementById('away-team');
     const homeScoreInput = document.getElementById('home-score');
     const awayScoreInput = document.getElementById('away-score');
     
     const date = dateInput.value;
+    const homeId = parseInt(homeSelect.value);
+    const awayId = parseInt(awaySelect.value);
     const homeScore = parseInt(homeScoreInput.value);
     const awayScore = parseInt(awayScoreInput.value);
     
@@ -634,16 +319,322 @@ function addMatch() {
     // Reset form
     homeScoreInput.value = '';
     awayScoreInput.value = '';
-    document.getElementById('home-team-search').value = '';
-    document.getElementById('away-team-search').value = '';
-    document.getElementById('home-team-id').value = '';
-    document.getElementById('away-team-id').value = '';
     
     // Update UI
     renderMatchesTable();
 }
 
-// ... (keep all remaining existing functions unchanged) ...
+function processMatchResults(match) {
+    const homeTeam = championshipData.teams.find(t => t.id === match.homeId);
+    const awayTeam = championshipData.teams.find(t => t.id === match.awayId);
+    
+    // Update win/loss records
+    if (match.winnerId === match.homeId) {
+        homeTeam.wins++;
+        awayTeam.losses++;
+    } else if (match.winnerId === match.awayId) {
+        awayTeam.wins++;
+        homeTeam.losses++;
+    }
+    
+    // Update streaks
+    updateStreak(homeTeam, match.winnerId === match.homeId ? 'win' : 
+                (match.winnerId === match.awayId ? 'loss' : 'draw'));
+    updateStreak(awayTeam, match.winnerId === match.awayId ? 'win' : 
+                (match.winnerId === match.homeId ? 'loss' : 'draw'));
+    
+    // Update holder status if changed
+    if (match.postMatchHolder !== match.preMatchHolder) {
+        // Clear previous holder status
+        championshipData.teams.forEach(team => team.isHolder = false);
+        
+        // Set new holder
+        const newHolder = championshipData.teams.find(t => t.id === match.postMatchHolder);
+        if (newHolder) {
+            newHolder.isHolder = true;
+            championshipData.currentHolder = newHolder.id;
+            
+            // Add new reign
+            newHolder.reigns.push({
+                start: match.date,
+                end: null,
+                days: 0
+            });
+        }
+        
+        // End previous holder's reign if it exists
+        if (match.preMatchHolder) {
+            const prevHolder = championshipData.teams.find(t => t.id === match.preMatchHolder);
+            if (prevHolder && prevHolder.reigns.length > 0) {
+                const currentReign = prevHolder.reigns[prevHolder.reigns.length - 1];
+                if (!currentReign.end) {
+                    currentReign.end = match.date;
+                    
+                    // Calculate days held
+                    const startDate = new Date(currentReign.start);
+                    const endDate = new Date(match.date);
+                    currentReign.days = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
+                }
+            }
+        }
+    }
+}
+
+function updateStreak(team, result) {
+    let current = team.streaks.current || '';
+    
+    if (result === 'win') {
+        if (current.startsWith('W')) {
+            const count = parseInt(current.substring(1)) + 1;
+            team.streaks.current = `W${count}`;
+            if (count > team.streaks.longestWin) {
+                team.streaks.longestWin = count;
+            }
+        } else {
+            team.streaks.current = 'W1';
+            if (team.streaks.longestWin < 1) {
+                team.streaks.longestWin = 1;
+            }
+        }
+    } else if (result === 'loss') {
+        if (current.startsWith('L')) {
+            const count = parseInt(current.substring(1)) + 1;
+            team.streaks.current = `L${count}`;
+            if (count > team.streaks.longestLoss) {
+                team.streaks.longestLoss = count;
+            }
+        } else {
+            team.streaks.current = 'L1';
+            if (team.streaks.longestLoss < 1) {
+                team.streaks.longestLoss = 1;
+            }
+        }
+    } else {
+        // Draw - reset streak
+        team.streaks.current = '';
+    }
+}
+
+function populateTeamDropdowns() {
+    const homeSelect = document.getElementById('home-team');
+    const awaySelect = document.getElementById('away-team');
+    
+    if (!homeSelect || !awaySelect) return;
+    
+    // Clear existing options
+    homeSelect.innerHTML = '';
+    awaySelect.innerHTML = '';
+    
+    // Add default option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Select a team';
+    defaultOption.disabled = true;
+    defaultOption.selected = true;
+    
+    homeSelect.appendChild(defaultOption.cloneNode(true));
+    awaySelect.appendChild(defaultOption.cloneNode(true));
+    
+    // Add teams
+    championshipData.teams.forEach(team => {
+        const option = document.createElement('option');
+        option.value = team.id;
+        option.textContent = team.name;
+        homeSelect.appendChild(option.cloneNode(true));
+        awaySelect.appendChild(option.cloneNode(true));
+    });
+}
+
+function renderTeamsTable() {
+    const tableBody = document.querySelector('#teams-table tbody');
+    if (!tableBody) return;
+    
+    tableBody.innerHTML = '';
+    
+    championshipData.teams.forEach(team => {
+        const row = document.createElement('tr');
+        
+        row.innerHTML = `
+            <td>${team.name}</td>
+            <td>${team.wins}-${team.losses}</td>
+            <td>${team.isHolder ? '<span class="holder-badge">Holder</span>' : ''}</td>
+            <td>
+                <button onclick="editTeam(${team.id})" class="primary-btn">Edit</button>
+                <button onclick="deleteTeam(${team.id})" class="danger-btn">Delete</button>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+}
+
+function renderMatchesTable() {
+    const tableBody = document.querySelector('#matches-table tbody');
+    if (!tableBody) return;
+    
+    tableBody.innerHTML = '';
+    
+    // Sort matches by date (newest first)
+    const sortedMatches = [...championshipData.matches].sort((a, b) => 
+        new Date(b.date) - new Date(a.date));
+    
+    sortedMatches.forEach(match => {
+        const homeTeam = championshipData.teams.find(t => t.id === match.homeId);
+        const awayTeam = championshipData.teams.find(t => t.id === match.awayId);
+        const champion = championshipData.teams.find(t => t.id === match.postMatchHolder);
+        
+        if (!homeTeam || !awayTeam || !champion) return;
+        
+        const row = document.createElement('tr');
+        
+        // Determine result text
+        let resultText = '';
+        if (match.winnerId === match.homeId) {
+            resultText = `${homeTeam.name} won`;
+        } else if (match.winnerId === match.awayId) {
+            resultText = `${awayTeam.name} won`;
+        } else {
+            resultText = 'Draw';
+        }
+        
+        // Check if championship changed
+        const champChanged = match.preMatchHolder !== match.postMatchHolder;
+        const champText = champChanged ? 
+            `${champion.name} (new)` : champion.name;
+        
+        row.innerHTML = `
+            <td>${new Date(match.date).toLocaleDateString()}</td>
+            <td>${homeTeam.name} vs ${awayTeam.name}</td>
+            <td>${match.homeScore}-${match.awayScore} (${resultText})</td>
+            <td>${champText}</td>
+            <td>
+                <button onclick="editMatch(${match.id})" class="primary-btn">Edit</button>
+                <button onclick="deleteMatch(${match.id})" class="danger-btn">Delete</button>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+}
+
+function editTeam(teamId) {
+    // Implementation for editing a team
+    alert('Edit team functionality would go here');
+}
+
+function deleteTeam(teamId) {
+    if (!confirm('Are you sure you want to delete this team? This will also delete all associated matches.')) {
+        return;
+    }
+    
+    // Find team index
+    const teamIndex = championshipData.teams.findIndex(t => t.id === teamId);
+    if (teamIndex === -1) return;
+    
+    // Check if this is the current holder
+    const isHolder = championshipData.currentHolder === teamId;
+    
+    // Remove team
+    championshipData.teams.splice(teamIndex, 1);
+    
+    // Remove matches involving this team
+    championshipData.matches = championshipData.matches.filter(m => 
+        m.homeId !== teamId && m.awayId !== teamId
+    );
+    
+    // Update current holder if needed
+    if (isHolder) {
+        championshipData.currentHolder = null;
+    }
+    
+    saveData();
+    renderTeamsTable();
+    renderMatchesTable();
+}
+
+function editMatch(matchId) {
+    // Implementation for editing a match
+    alert('Edit match functionality would go here');
+}
+
+function deleteMatch(matchId) {
+    if (!confirm('Are you sure you want to delete this match?')) {
+        return;
+    }
+    
+    // Find match index
+    const matchIndex = championshipData.matches.findIndex(m => m.id === matchId);
+    if (matchIndex === -1) return;
+    
+    // Revert match effects
+    revertMatchEffects(championshipData.matches[matchIndex]);
+    
+    // Remove match
+    championshipData.matches.splice(matchIndex, 1);
+    saveData();
+    renderMatchesTable();
+}
+
+function revertMatchEffects(match) {
+    const homeTeam = championshipData.teams.find(t => t.id === match.homeId);
+    const awayTeam = championshipData.teams.find(t => t.id === match.awayId);
+    
+    // Revert win/loss records
+    if (match.winnerId === match.homeId) {
+        homeTeam.wins--;
+        awayTeam.losses--;
+    } else if (match.winnerId === match.awayId) {
+        awayTeam.wins--;
+        homeTeam.losses--;
+    }
+    
+    // Revert streaks (simplified - in a real app you'd need more complex logic)
+    homeTeam.streaks.current = '';
+    awayTeam.streaks.current = '';
+    
+    // Revert holder changes if this match changed the holder
+    if (match.preMatchHolder !== match.postMatchHolder) {
+        // Remove new holder's reign
+        const newHolder = championshipData.teams.find(t => t.id === match.postMatchHolder);
+        if (newHolder) {
+            newHolder.isHolder = false;
+            newHolder.reigns.pop();
+        }
+        
+        // Restore previous holder's reign
+        const prevHolder = championshipData.teams.find(t => t.id === match.preMatchHolder);
+        if (prevHolder) {
+            prevHolder.isHolder = true;
+            prevHolder.reigns.push({
+                start: match.date,
+                end: null,
+                days: 0
+            });
+            championshipData.currentHolder = prevHolder.id;
+        }
+    }
+}
+
+function resetData() {
+    if (!confirm('ARE YOU SURE YOU WANT TO RESET ALL DATA?\nThis cannot be undone.')) {
+        return;
+    }
+    
+    championshipData = {
+        teams: [],
+        matches: [],
+        currentHolder: null,
+        lastUpdated: new Date().toISOString()
+    };
+    
+    saveData();
+    
+    if (typeof renderTeamsTable === 'function') renderTeamsTable();
+    if (typeof renderMatchesTable === 'function') renderMatchesTable();
+    if (typeof updateDashboard === 'function') updateDashboard();
+    
+    alert('All data has been reset.');
+}
 
 // Data Viewer Functions
 function initDataViewer() {
@@ -661,16 +652,63 @@ function initDataViewer() {
     window.addEventListener('championshipDataUpdated', displayJsonData);
 }
 
-// ... (keep all remaining data viewer functions unchanged) ...
+function displayJsonData() {
+    const jsonDisplay = document.getElementById('json-display');
+    if (!jsonDisplay) return;
+    
+    jsonDisplay.textContent = JSON.stringify(championshipData, null, 2);
+    jsonDisplay.dataset.rawJson = JSON.stringify(championshipData);
+}
 
-// Initialize the appropriate page
-document.addEventListener('DOMContentLoaded', function() {
-    if (window.location.pathname.includes('index.html') || 
-        window.location.pathname.endsWith('/')) {
-        initDashboard();
-    } else if (window.location.pathname.includes('manage.html')) {
-        initManagement();
-    } else if (window.location.pathname.includes('data.html')) {
-        initDataViewer();
+function exportJson() {
+    const dataStr = JSON.stringify(championshipData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `championship-data-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function copyJsonToClipboard() {
+    const jsonDisplay = document.getElementById('json-display');
+    if (!jsonDisplay) return;
+    
+    navigator.clipboard.writeText(jsonDisplay.textContent)
+        .then(() => alert('JSON copied to clipboard!'))
+        .catch(err => alert('Failed to copy: ' + err));
+}
+
+function searchJson() {
+    const searchInput = document.getElementById('search-input');
+    const jsonDisplay = document.getElementById('json-display');
+    
+    if (!searchInput || !jsonDisplay) return;
+    
+    const searchTerm = searchInput.value.trim().toLowerCase();
+    if (!searchTerm) {
+        jsonDisplay.textContent = JSON.stringify(championshipData, null, 2);
+        return;
     }
-});
+    
+    const rawJson = jsonDisplay.dataset.rawJson;
+    if (!rawJson) return;
+    
+    // Simple search highlighting
+    const highlighted = rawJson.replace(
+        new RegExp(searchTerm, 'gi'),
+        match => `<span class="search-highlight">${match}</span>`
+    );
+    
+    jsonDisplay.innerHTML = highlighted;
+    
+    // Scroll to first match
+    const firstMatch = jsonDisplay.querySelector('.search-highlight');
+    if (firstMatch) {
+        firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
